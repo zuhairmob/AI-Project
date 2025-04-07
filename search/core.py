@@ -49,18 +49,6 @@ class Vector2:
         yield self.r
         yield self.c
 
-    def down(self, n: int = 1) -> 'Vector2':
-        return self + Direction.Down * n
-    
-    def up(self, n: int = 1) -> 'Vector2':
-        return self + Direction.Up * n
-    
-    def left(self, n: int = 1) -> 'Vector2':
-        return self + Direction.Left * n
-    
-    def right(self, n: int = 1) -> 'Vector2':
-        return self + Direction.Right * n
-
 
 class Direction(Enum):
     """
@@ -131,14 +119,14 @@ class Coord(Vector2):
 
     def __add__(self, other: 'Direction|Vector2') -> 'Coord':
         return self.__class__(
-            (self.r + other.r) % BOARD_N, 
-            (self.c + other.c) % BOARD_N,
+            (self.r + other.r), 
+            (self.c + other.c),
         )
 
     def __sub__(self, other: 'Direction|Vector2') -> 'Coord':
         return self.__class__(
-            (self.r - other.r) % BOARD_N, 
-            (self.c - other.c) % BOARD_N
+            (self.r - other.r), 
+            (self.c - other.c)
         )
     
 
