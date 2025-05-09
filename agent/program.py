@@ -1,25 +1,17 @@
 # COMP30024 Artificial Intelligence, Semester 1 2025
 # Project Part B: Game Playing Agent
 
-from referee.game import PlayerColor, Coord, Direction, \
-    Action, MoveAction, GrowAction
-
+from referee.game import PlayerColor, Coord, Direction, Action, MoveAction, GrowAction
 from agent.board import Board
 from agent.eval import evaluate
+from agent.utils.board_utils import is_within_bounds  # ✅ added import
 
 import random
+import math
+import copy
 
 class Agent:
-    """
-    This class is the "entry point" for your agent, providing an interface to
-    respond to various Freckers game events.
-    """
-
     def __init__(self, color: PlayerColor, **referee: dict):
-        """
-        This constructor method runs when the referee instantiates the agent.
-        Any setup and/or precomputation should be done here.
-        """
         self._color = color
         self.board = Board(color)
         self.board.initialize()
@@ -31,13 +23,63 @@ class Agent:
                 print("Testing: I am playing as BLUE")
 
     def action(self, **referee: dict) -> Action:
-        """
-        This method is called by the referee each time it is the agent's turn
-        to take an action. It must always return an action object. 
-        """
+        best_score = -math.inf
+        best_action = None
+        alpha = -math.inf
+        beta = math.inf
+        depth = 3
 
-        my_frogs = list(self.board.my_frogs)
-        random.shuffle(my_frogs)
+        actions = self.generate_actions(self.board, True)
+
+        print("==== VALID ACTIONS GENERATED ====")
+        for action in actions:
+            print("Trying:", action)
+
+        for action in actions:
+            new_board = self.simulate_action(action, self.board, True)
+            score = self.minimax(new_board, depth - 1, alpha, beta, False)
+
+            if score > best_score:
+                best_score = score
+                best_action = action
+            alpha = max(alpha, score)
+
+        return best_action if best_action else GrowAction()
+
+    def minimax(self, board, depth, alpha, beta, maximizing):
+        if depth == 0:
+            return evaluate(board)
+
+        actions = self.generate_actions(board, maximizing)
+        if not actions:
+            return evaluate(board)
+
+        if maximizing:
+            max_eval = -math.inf
+            for action in actions:
+                next_board = self.simulate_action(action, board, True)
+                score = self.minimax(next_board, depth - 1, alpha, beta, False)
+                max_eval = max(max_eval, score)
+                alpha = max(alpha, score)
+                if beta <= alpha:
+                    break
+            return max_eval
+        else:
+            min_eval = math.inf
+            for action in actions:
+                next_board = self.simulate_action(action, board, False)
+                score = self.minimax(next_board, depth - 1, alpha, beta, True)
+                min_eval = min(min_eval, score)
+                beta = min(beta, score)
+                if beta <= alpha:
+                    break
+            return min_eval
+
+    def generate_actions(self, board, for_maximizer):
+        frogs = board.my_frogs if for_maximizer else board.enemy_frogs
+        color = board.color if for_maximizer else (
+            PlayerColor.RED if board.color == PlayerColor.BLUE else PlayerColor.BLUE
+        )
 
         valid_dirs = {
             PlayerColor.RED: [
@@ -50,31 +92,89 @@ class Agent:
             ],
         }
 
-        for frog in my_frogs:
-            directions = valid_dirs[self._color]
-            random.shuffle(directions)
-            for direction in directions:
-                if self.is_legal_single_step(frog, direction):
-                    vec = direction.value
-                    new_coord = Coord(frog.r + vec.r, frog.c + vec.c)
-                    print(f"Testing: {self._color.name} is playing MOVE from {frog} to {new_coord} via [{direction}]")
-                    return MoveAction(frog, [direction])
+        actions = []
 
-        print(f"Testing: {self._color.name} is playing a GROW action")
-        return GrowAction()
+        for frog in frogs:
+            for d in valid_dirs[color]:
+                if self.is_legal_single_step(frog, d):
+                    actions.append(MoveAction(frog, [d]))
+
+            all_frogs = board.my_frogs | board.enemy_frogs
+            jump_paths = self.find_jump_paths(board, frog, valid_dirs[color], all_frogs)
+            for path in jump_paths:
+                actions.append(MoveAction(frog, path))
+
+        actions.append(GrowAction())
+        return actions
+
+    def find_jump_paths(self, board, start, directions, all_frogs):
+        results = []
+
+        def dfs(current, path, visited):
+            for d in directions:
+                dr, dc = d.value
+                over_r = current.r + dr
+                over_c = current.c + dc
+                land_r = current.r + 2 * dr
+                land_c = current.c + 2 * dc
+
+                if not is_within_bounds(land_r, land_c):  # ✅ updated check
+                    continue
+
+                over = Coord(over_r, over_c)
+                land = Coord(land_r, land_c)
+
+                if (
+                    over in all_frogs and
+                    land in board.lilypads and
+                    land not in board.my_frogs and
+                    land not in board.enemy_frogs and
+                    land not in visited
+                ):
+                    new_path = path + [d]
+                    results.append(new_path)
+                    visited.add(land)
+                    dfs(land, new_path, visited)
+                    visited.remove(land)
+
+        dfs(start, [], set())
+        return results
+
+    def simulate_action(self, action, board, for_maximizer):
+        try:
+            new_board = copy.deepcopy(board)
+            if isinstance(action, MoveAction):
+                try:
+                    if for_maximizer:
+                        if not self.validate_move(new_board, action.coord, action.directions):
+                            raise ValueError("Invalid simulated move")
+                        new_board.apply_move(action.coord, action.directions)
+                    else:
+                        if not self.validate_move(new_board, action.coord, action.directions):
+                            raise ValueError("Invalid simulated opponent move")
+                        new_board.update_opponent(action.coord, action.directions)
+
+                except Exception as e:
+                    print(f"[SIM ERROR]: Invalid move skipped during simulate: {action}, error: {e}")
+                    return board
+
+            elif isinstance(action, GrowAction):
+                new_board.apply_grow()
+            return new_board
+        except ValueError as e:
+            print(f"[SIMULATION ERROR]: Skipping invalid move {action}: {e}")
+            return board
 
     def is_legal_single_step(self, start: Coord, direction: Direction) -> bool:
-        vec = direction.value
-        next_r = start.r + vec.r
-        next_c = start.c + vec.c
+        dr, dc = direction.value
+        next_r = start.r + dr
+        next_c = start.c + dc
 
-        # Check board bounds BEFORE creating Coord
-        if not (0 <= next_r < 8 and 0 <= next_c < 8):
+        if not is_within_bounds(next_r, next_c):  # ✅ updated check
             return False
 
         dest = Coord(next_r, next_c)
 
-        # Make sure destination is an empty lilypad
         if dest not in self.board.lilypads:
             return False
         if dest in self.board.my_frogs or dest in self.board.enemy_frogs:
@@ -82,19 +182,30 @@ class Agent:
 
         return True
 
-    def update(self, color: PlayerColor, action: Action, **referee: dict):
-        """
-        This method is called by the referee after a player has taken their
-        turn. You should use it to update the agent's internal game state. 
-        """
+    def validate_move(self, board, start: Coord, directions: list[Direction]) -> bool:
+        pos = start
+        for d in directions:
+            dr, dc = d.value
+            next_r, next_c = pos.r + dr, pos.c + dc
 
-        # There are two possible action types: MOVE and GROW. Below we check
-        # which type of action was played and print out the details of the
-        # action for demonstration purposes. You should replace this with your
-        # own logic to update your agent's internal game state representation.
+            if not is_within_bounds(next_r, next_c):
+                return False
+
+            next_pos = Coord(next_r, next_c)
+
+            if next_pos not in board.lilypads:
+                return False
+            if next_pos in board.my_frogs or next_pos in board.enemy_frogs:
+                return False
+
+            pos = next_pos
+
+        return True
+
+    def update(self, color: PlayerColor, action: Action, **referee: dict):
         match action:
             case MoveAction(coord, dirs):
-                dirs_text = ", ".join([str(dir) for dir in dirs])
+                dirs_text = ", ".join([dir.name for dir in dirs])
                 print(f"Testing: {color} played MOVE action:")
                 print(f"  Coord: {coord}")
                 print(f"  Directions: {dirs_text}")

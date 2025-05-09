@@ -1,6 +1,8 @@
 # agent/board.py
 
 from referee.game import Coord, PlayerColor, Direction
+from agent.utils.directions import Direction
+from agent.utils.board_utils import is_within_bounds  # ✅ injected
 from typing import Set
 
 
@@ -44,7 +46,7 @@ class Board:
         self.lilypads.discard(coord)
 
         try:
-            new_coord = self.follow_directions(coord, dirs)  # defaults to step=2
+            new_coord = self.follow_directions(coord, dirs)
         except ValueError as e:
             print(f"[ERROR] Illegal opponent move from {coord} via {dirs}: {e}")
             raise
@@ -58,17 +60,19 @@ class Board:
                     if dr == 0 and dc == 0:
                         continue
                     new_r, new_c = frog.r + dr, frog.c + dc
-                    if 0 <= new_r < 8 and 0 <= new_c < 8:
+                    if is_within_bounds(new_r, new_c):  # ✅ replaced
                         self.lilypads.add(Coord(new_r, new_c))
 
-    def follow_directions(self, start: Coord, dirs: list[Direction], step: int = 2) -> Coord:
-        current = start
-        for d in dirs:
-            vec = d.value
-            next_r = current.r + step * vec.r
-            next_c = current.c + step * vec.c
-            if not (0 <= next_r < 8 and 0 <= next_c < 8):
-                raise ValueError(f"Out-of-bounds coordinate: {next_r}-{next_c}")
-            current = Coord(next_r, next_c)
-        return current
+    def follow_directions(self, coord: Coord, dirs: list[Direction], step=2) -> Coord:
+        current = coord
+        for dir in dirs:
+            dr, dc = dir.value
+            next_r = current.r + step * dr
+            next_c = current.c + step * dc
 
+            if not is_within_bounds(next_r, next_c):  # ✅ replaced
+                raise ValueError(f"Out-of-bounds coordinate: {next_r}-{next_c}")
+
+            current = Coord(next_r, next_c)
+
+        return current
