@@ -1,7 +1,6 @@
 # agent/eval.py
 
 from referee.game import Coord, PlayerColor
-from agent.utils.directions import Direction
 
 def evaluate(board) -> int:
     score = 0
