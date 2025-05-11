@@ -227,3 +227,4 @@ class Agent:
                     self.board.apply_grow()
             case _:
                 raise ValueError(f"Unknown action: {action}")
+            
