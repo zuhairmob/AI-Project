@@ -150,7 +150,7 @@ class Agent:
 
             # Check if the frog is on the second-to-last row
             if f.r == (board.goal_row - 1 if board.goal_row > 0 else board.goal_row + 1):
-                # Evaluate grow-and-move strategy
+                # Evaluate grow-and-move strategy to reach the blank space
                 grow_and_move_option, grow_and_move_cost = evaluate_grow_and_move(self, f, board)
                 if grow_and_move_option:
                     adjacent, blank = grow_and_move_option
@@ -164,6 +164,7 @@ class Agent:
                         direction_to_blank = (blank.r - adjacent.r, blank.c - adjacent.c)
                         if direction_to_blank in [d.value for d in Direction]:
                             actions.append(MoveAction(adjacent, [Direction(direction_to_blank)]))  # Move into blank
+                    
 
             # Generate regular move actions
             for d in valid_dirs[color]:
@@ -250,44 +251,33 @@ class Agent:
 
 def evaluate_move_progress(self, action, board):
     if isinstance(action, MoveAction):
-
-        if (action.coord.r == board.goal_row):
-            return -50
-
         # Simulate the move
         simulated_board = self.simulate_action(action, board, True)
 
         goal_row = simulated_board.goal_row
 
-        current_progress = sum(abs(goal_row - frog.r) for frog in board.my_frogs)
-        new_progress = sum(abs(goal_row - frog.r) for frog in simulated_board.my_frogs)
-        total_progress = abs(current_progress - new_progress)
-
-        current_farthest = max(abs(goal_row - frog.r) for frog in board.my_frogs)
-        new_farthest = max(abs(goal_row - frog.r) for frog in simulated_board.my_frogs)
-        if current_farthest > new_farthest:
-            total_progress += 1
+        current_distances = sum(abs(goal_row - frog.r) for frog in board.my_frogs)
+        new_distances = sum(abs(goal_row - frog.r) for frog in simulated_board.my_frogs)
+        total_distance_diff = abs(current_distances - new_distances)
         
-        return total_progress
-    return 0  # GrowAction progress
+        return total_distance_diff  # MoveAction progress
+    return 0
 
 def evaluate_move_efficiency(self, action):
     if isinstance(action, MoveAction):
-         # Additional penalty for stagnation (no progress toward the goal row)
+
+         # Penalty for stagnation (no progress toward the goal row)
         start_row = action.coord.r
         end_row = action.coord.r + sum(d.value.r for d in action.directions)
         if start_row == end_row:  # No progress
-            return -30  # Penalize stagnation
+            return -1  # Penalize stagnation
         
-        # Penalize moves that are not diagonal when diagonal is possible
+        # Prefer vertical and diagonal moves
         if len(action.directions) == 1:
             direction = action.directions[0]
-            if direction in [Direction.DownLeft, Direction.DownRight, Direction.UpLeft, Direction.UpRight]:
-                return 10  # No penalty for diagonal moves
-            elif direction in [Direction.Left, Direction.Right]:
-                return -50  # Strong penalty for horizontal moves
-            else:
-                return 10 # No penalty for vertical moves
+            if direction not in [Direction.Left, Direction.Right]:
+                return 1  # Strong penalty for horizontal moves
+            
     return 0
 
 def evaluate_grow_action(self, board):
