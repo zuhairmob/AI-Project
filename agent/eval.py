@@ -1,43 +1,37 @@
-# agent/eval.py
+# a richer evaluation: goal‐completion, distance, jump‐potential, clustering.
 
-from referee.game import Coord, PlayerColor
+from agent.utils.board_utils import is_within_bounds
+from referee.game import Direction, Coord
+from referee.game import PlayerColor
 
-def evaluate(board) -> int:
-    score = 0
-    goal_row = 7 if board.color == PlayerColor.RED else 0
-    enemy_goal = 0 if board.color == PlayerColor.RED else 7
+def evaluate(board) -> float:
+    """
+    Simple heuristic:
+      +100 for each of your frogs on your goal row
+      -100 for each enemy frog on their goal row
+      -sum of vertical distances of your frogs to your goal row
+    """
 
-    for frog in board.my_frogs:
-        # Reward progress
-        progress = abs(frog.r - goal_row)
-        score -= 2 * progress
+    me = board.my_frogs
+    you = board.enemy_frogs
 
-        # Bonus for goal row
-        if frog.r == goal_row:
-            score += 50
+    # 1) figure out the min/max row on the board
+    rows = [coord.r for coord in board.lilypads]
+    min_row, max_row = min(rows), max(rows)
 
-        # Bonus for being in enemy half
-        if (board.color == PlayerColor.RED and frog.r > 3) or \
-           (board.color == PlayerColor.BLUE and frog.r < 4):
-            score += 5
+    # 2) your goal row = bottom if RED, top if BLUE
+    if board.color == PlayerColor.RED:
+        my_goal_row = max_row
+        enemy_goal_row = min_row
+    else:
+        my_goal_row = min_row
+        enemy_goal_row = max_row
 
-        # Check local mobility (adjacent lilypads)
-        mobility = 0
-        for dr in [-1, 0, 1]:
-            for dc in [-1, 0, 1]:
-                if dr == 0 and dc == 0:
-                    continue
-                r, c = frog.r + dr, frog.c + dc
-                if 0 <= r < 8 and 0 <= c < 8:
-                    if Coord(r, c) in board.lilypads:
-                        mobility += 1
-        score += mobility
+    # 3) score frogs that have already reached goal
+    reach_score = 100 * (sum(1 for f in me if f.r == my_goal_row)
+                       - sum(1 for f in you if f.r == enemy_goal_row))
 
-    for frog in board.enemy_frogs:
-        # Penalize enemy frogs in our goal
-        if frog.r == enemy_goal:
-            score -= 50
-        else:
-            score += abs(frog.r - enemy_goal)
+    # 4) penalize by vertical distance to your goal
+    dist_penalty = sum(abs(f.r - my_goal_row) for f in me)
 
-    return score
+    return float(reach_score - dist_penalty)
