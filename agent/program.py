@@ -4,9 +4,9 @@
 # Project Part B: Game Playing Agent
 
 from referee.game import PlayerColor, Coord, Direction, Action, MoveAction, GrowAction
-from agent.board import Board
-from agent.eval import evaluate
-from agent.utils.board_utils import is_within_bounds
+from .board import Board
+from .eval import evaluate
+from .utils.board_utils import is_within_bounds
 
 import random
 import math

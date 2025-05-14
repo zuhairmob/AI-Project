@@ -1,5 +1,5 @@
 from referee.game import Coord, PlayerColor, Direction
-from agent.utils.board_utils import is_within_bounds
+from .utils.board_utils import is_within_bounds
 from typing import Set
 
 class Board:

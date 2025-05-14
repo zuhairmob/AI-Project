@@ -1,6 +1,6 @@
 # a richer evaluation: goal‐completion, distance, jump‐potential, clustering.
 
-from agent.utils.board_utils import is_within_bounds
+from .utils.board_utils import is_within_bounds
 from referee.game import Direction, Coord
 from referee.game import PlayerColor
 
